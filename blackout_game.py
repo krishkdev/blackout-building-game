@@ -60,6 +60,12 @@ COUNTDOWN_DIGITS = {
 
 _occupied_rng = random.Random(2026)
 OCCUPIED = {(row, col) for row in range(ROWS) for col in range(COLS) if _occupied_rng.random() < 0.72}
+OCCUPIED_COLORS = {
+    position: (lambda warmth: [warmth, int(warmth * 0.68), int(warmth * 0.16)])(
+        (105, 125, 145, 165)[(position[0] * 7 + position[1] * 11) % 4]
+    )
+    for position in OCCUPIED
+}
 
 
 def blank():
@@ -154,7 +160,6 @@ class Game:
         self.display_status = "connecting"
         self.controller = "keyboard / touch"
         self.outcome = None
-        self._last_idle_second = -1
 
     def start(self):
         with self.lock:
@@ -288,11 +293,8 @@ class Game:
 
     def render_idle(self, now):
         frame = blank()
-        tick = int(now * 2)
-        rng = random.Random(4409 + tick)
         for row, col in OCCUPIED:
-            warmth = rng.choice((105, 125, 145, 165))
-            frame[row][col] = [warmth, int(warmth * 0.68), int(warmth * 0.16)]
+            frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
         # A breathing white diamond is the start invitation.
         pulse = 125 + int(100 * (0.5 + 0.5 * math.sin(now * 3)))
         for position in ((7, 4), (8, 3), (8, 4), (8, 5), (9, 4)):
@@ -449,11 +451,13 @@ GAME = Game()
 
 
 def display_loop():
+    # Clear any frame left behind by an older run before showing attract mode.
+    clear_until = time.monotonic() + 0.5
     while True:
         started = time.monotonic()
         GAME.update(started)
         with GAME.lock:
-            frame = GAME.render(started)
+            frame = blank() if started < clear_until else GAME.render(started)
             GAME.last_frame = frame
         payload = json.dumps(frame, separators=(",", ":")).encode()
         request = urllib.request.Request(DISPLAY_URL, data=payload, headers={"Content-Type": "application/json", "User-Agent": "blackout-demo/1.0"}, method="POST")

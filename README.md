@@ -50,6 +50,7 @@ The game automatically searches `/dev/cu.usbmodem*` and `/dev/cu.usbserial*` at 
 8. Win, capture, and timeout have distinct endings.
 
 The game returns to attract mode after each result; it never starts another round automatically.
+The yellow occupied windows remain steady in attract mode; only the central white start marker breathes. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
 
 ## 60-second judge demo
 
