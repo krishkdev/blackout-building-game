@@ -26,7 +26,7 @@ The included `Dockerfile` supports public cloud deployment on Maritime. The phon
 - Short vibration: movement accepted
 - Double vibration: blocked move
 
-The simplified maze has 19 clearly visible deep-red walls instead of 46. The player's cool light progressively greys out within two cells of one. A blocked move briefly brightens the attempted wall. The hunter uses a brighter coral-red pulse, so the signals remain distinct.
+The simplified maze has 19 clearly visible amber walls instead of 46. The player's cool light progressively greys out within two cells of one. A blocked move briefly brightens the attempted wall. The hunter uses a pulsing coral-red light, so the signals remain distinct.
 
 Sprint movement is immediate and creates a noise pulse that slightly advances the hunter's next move. Five consecutive sprint steps trigger one bonus hunter step. Sneaking has a longer movement cooldown, emits much less noise, and breaks the sprint streak. The hunter's normal step interval ranges from 1.45 seconds at distance to about 1.05 seconds nearby.
 

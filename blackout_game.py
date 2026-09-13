@@ -51,7 +51,7 @@ HUNTER_START = (1, 8)
 EXIT = (16, 8)
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 WALLS = {(row, col) for row in range(1, ROWS) for col in range(COLS) if (row, col) not in WALKABLE}
-WALL_COLOR = [96, 3, 18]
+WALL_COLOR = [105, 58, 7]
 COUNTDOWN_DIGITS = {
     "3": ("11111", "00001", "00001", "01111", "00001", "00001", "11111"),
     "2": ("11111", "00001", "00001", "11111", "10000", "10000", "11111"),
@@ -412,7 +412,7 @@ class Game:
         # A rejected move briefly reveals the solid corridor wall in deep red.
         if now < self.blocked_until and self.blocked_position:
             row, col = self.blocked_position
-            frame[row][col] = [165, 0, 26]
+            frame[row][col] = [210, 112, 10]
 
         if now < self.near_miss_until:
             amount = (self.near_miss_until - now) / 0.25
