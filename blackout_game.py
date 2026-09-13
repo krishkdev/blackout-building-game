@@ -51,7 +51,7 @@ HUNTER_START = (1, 8)
 EXIT = (16, 8)
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 WALLS = {(row, col) for row in range(1, ROWS) for col in range(COLS) if (row, col) not in WALKABLE}
-WALL_COLOR = [38, 2, 7]
+WALL_COLOR = [96, 3, 18]
 COUNTDOWN_DIGITS = {
     "3": ("11111", "00001", "00001", "01111", "00001", "00001", "11111"),
     "2": ("11111", "00001", "00001", "11111", "10000", "10000", "11111"),
@@ -193,7 +193,7 @@ class Game:
         self.phase = "playing"
         self.phase_started = now
         self.round_started = now
-        self.next_hunter_move = now + 0.9
+        self.next_hunter_move = now + 1.35
         self.next_heartbeat = now
         self.audio.play("chase.wav", music=True)
 
@@ -218,15 +218,12 @@ class Game:
                 self.sprint_streak = 0
             else:
                 self.sprint_streak += 1
-                self.next_hunter_move -= 0.26
-                # Three careless footsteps give the hunter a two-cell burst.
-                if self.sprint_streak % 3 == 0:
-                    for _ in range(2):
-                        self.previous_hunter = self.hunter
-                        self.hunter = bfs_step(self.hunter, self.player)
-                        self.consumed.add(self.previous_hunter)
-                        if self.hunter == self.player:
-                            break
+                self.next_hunter_move -= 0.10
+                # Five uninterrupted sprint steps give the hunter one bonus step.
+                if self.sprint_streak % 5 == 0:
+                    self.previous_hunter = self.hunter
+                    self.hunter = bfs_step(self.hunter, self.player)
+                    self.consumed.add(self.previous_hunter)
             new_distance = self.distance()
             if min(old_distance, new_distance) == 1 and new_distance > old_distance:
                 self.near_miss_until = now + 0.25
@@ -271,7 +268,7 @@ class Game:
                     self.hunter = bfs_step(self.hunter, self.player)
                     self.consumed.add(self.previous_hunter)
                     closeness = 1.0 - min(8, self.distance()) / 8
-                    self.next_hunter_move = now + max(0.40, 0.92 - closeness * 0.30)
+                    self.next_hunter_move = now + max(0.85, 1.45 - closeness * 0.40)
                 if now >= self.next_heartbeat:
                     closeness = 1.0 - min(8, self.distance()) / 8
                     self.audio.play("heartbeat.wav")
@@ -397,7 +394,7 @@ class Game:
         # A rejected move briefly reveals the solid corridor wall in deep red.
         if now < self.blocked_until and self.blocked_position:
             row, col = self.blocked_position
-            frame[row][col] = [92, 0, 10]
+            frame[row][col] = [165, 0, 26]
 
         if now < self.near_miss_until:
             amount = (self.near_miss_until - now) / 0.25
