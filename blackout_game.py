@@ -49,6 +49,11 @@ EXIT = (16, 8)
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 WALLS = {(row, col) for row in range(1, ROWS) for col in range(COLS) if (row, col) not in WALKABLE}
 WALL_COLOR = [38, 2, 7]
+COUNTDOWN_DIGITS = {
+    "3": ("11111", "00001", "00001", "01111", "00001", "00001", "11111"),
+    "2": ("11111", "00001", "00001", "11111", "10000", "10000", "11111"),
+    "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+}
 
 _occupied_rng = random.Random(2026)
 OCCUPIED = {(row, col) for row in range(ROWS) for col in range(COLS) if _occupied_rng.random() < 0.72}
@@ -241,7 +246,7 @@ class Game:
             if self.phase == "prologue" and now - self.phase_started >= 8.1:
                 self.phase = "ready"
                 self.phase_started = now
-            elif self.phase == "ready" and now - self.phase_started >= 2.4:
+            elif self.phase == "ready" and now - self.phase_started >= 3.0:
                 self.begin_round(now)
             elif self.phase == "playing":
                 self.noise = max(0.0, self.noise - 0.055)
@@ -310,7 +315,7 @@ class Game:
     def render_ready(self, now):
         frame = blank()
         elapsed = now - self.phase_started
-        stage = int(elapsed / 0.8)
+        stage = min(2, int(elapsed))
         for row, col in WALLS:
             frame[row][col] = WALL_COLOR[:]
         frame[EXIT[0]][EXIT[1]] = [0, 190, 30]
@@ -318,9 +323,12 @@ class Game:
         if stage >= 1:
             red = 120 + int(120 * (0.5 + 0.5 * math.sin(now * 8)))
             frame[self.hunter[0]][self.hunter[1]] = [red, red // 5, red // 8]
-        # 3, 2, 1 represented as three center cells extinguishing in sequence.
-        for col in range(max(0, 3 - stage)):
-            frame[8][3 + col] = [215, 215, 230]
+        digit = COUNTDOWN_DIGITS[str(3 - stage)]
+        brightness = 195 + int(45 * (1 - elapsed % 1.0))
+        for glyph_row, pixels in enumerate(digit):
+            for glyph_col, lit in enumerate(pixels):
+                if lit == "1":
+                    frame[5 + glyph_row][2 + glyph_col] = [brightness, brightness, min(255, brightness + 10)]
         return frame
 
     def render_game(self, now):

@@ -43,8 +43,9 @@ The game automatically searches `/dev/cu.usbmodem*` and `/dev/cu.usbserial*` at 
 3. Yellow office lights fail from top to bottom.
 4. A red alarm scans the facade.
 5. Green exit, white protagonist, and red hunter appear.
-6. The player has 20 seconds to reach the exit.
-7. Win, capture, and timeout have distinct endings.
+6. A large 3–2–1 countdown appears before the chase begins.
+7. The player has 20 seconds to reach the exit.
+8. Win, capture, and timeout have distinct endings.
 
 The game returns to attract mode after each result; it never starts another round automatically.
 
