@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent
 AUDIO = ROOT / "audio"
 DISPLAY_URL = os.environ.get("BLACKOUT_DISPLAY_URL", "https://sundai.willsarg.com/api/i/calm-egret/frame")
 HOST = os.environ.get("BLACKOUT_HOST", "0.0.0.0")
-PORT = int(os.environ.get("BLACKOUT_PORT", "8765"))
+PORT = int(os.environ.get("PORT", os.environ.get("BLACKOUT_PORT", "8765")))
 FPS = 8
 ROUND_SECONDS = 20.0
 ROWS, COLS = 17, 9
@@ -548,8 +548,22 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/state":
             self.send_json(GAME.snapshot())
             return
-        if self.path == "/api/health":
+        if self.path in ("/health", "/api/health"):
             self.send_json({"ok": True, "display": GAME.display_status, "audio": bool(GAME.audio.player)})
+            return
+        if self.path.startswith("/audio/"):
+            filename = self.path.removeprefix("/audio/")
+            allowed = {path.name for path in AUDIO.glob("*.wav")}
+            if filename not in allowed:
+                self.send_error(404)
+                return
+            data = (AUDIO / filename).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         if self.path in ("/", "/controller", "/controller.html"):
             data = (ROOT / "controller.html").read_bytes()

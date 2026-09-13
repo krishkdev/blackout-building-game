@@ -16,6 +16,8 @@ Open `http://127.0.0.1:8765/controller` locally, or open `http://YOUR_COMPUTER_I
 
 For the headless Raspberry Pi installation and phone swipe controller, follow [`PI_SETUP.md`](PI_SETUP.md). Once installed, the remote is available at `http://blackout.local:8765/controller` and no laptop display is required.
 
+The included `Dockerfile` supports public cloud deployment on Maritime. The phone controller plays the synchronized soundtrack itself when the server has no physical audio output.
+
 ## Phone controls
 
 - Press the red button: start

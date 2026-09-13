@@ -1,0 +1,8 @@
+.git
+.maritime
+__pycache__
+*.pyc
+.DS_Store
+deploy
+arduino
+Start Blackout.command

@@ -42,15 +42,23 @@
   <script>
     const surface=document.querySelector('#surface'), arrow=document.querySelector('#arrow'), mode=document.querySelector('#mode'), start=document.querySelector('#start');
     const phaseNames={idle:'READY',prologue:'BLACKOUT',ready:'3 · 2 · 1',playing:'MOVE',won:'ESCAPED',caught:'CAUGHT',timeout:'POWER LOST'};
-    let origin=null, holdTimer=null, held=false, phase='idle';
+    let origin=null, holdTimer=null, held=false, phase='idle', previousPhase=null, nextHeartbeat=0;
     const arrowFor={up:'↑',down:'↓',left:'←',right:'→'};
+    const sounds={
+      prologue:new Audio('/audio/prologue.wav'), chase:new Audio('/audio/chase.wav'), heartbeat:new Audio('/audio/heartbeat.wav'),
+      win:new Audio('/audio/win.wav'), caught:new Audio('/audio/caught.wav'), nearMiss:new Audio('/audio/near_miss.wav')
+    };
+    let music=null;
+    function stopMusic(){ if(music){ music.pause(); music.currentTime=0; music=null; } }
+    function playMusic(name){ stopMusic(); music=sounds[name]; music.currentTime=0; music.play().catch(()=>{}); }
+    function playEffect(name){ const sound=sounds[name].cloneNode(); sound.volume=.9; sound.play().catch(()=>{}); }
     function direction(dx,dy){ if(Math.max(Math.abs(dx),Math.abs(dy))<34)return null; return Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'); }
     async function post(path,body={}){
       try { const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return await response.json(); }
       catch(_){ return {ok:false}; }
     }
     async function keepAwake(){ try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(_){} }
-    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('/api/start'); if(result.ok) navigator.vibrate?.(25); });
+    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('/api/start'); if(result.ok){ playMusic('prologue'); navigator.vibrate?.(25); } });
     surface.addEventListener('pointerdown',event=>{
       origin={x:event.clientX,y:event.clientY,id:event.pointerId}; held=false; surface.setPointerCapture(event.pointerId); surface.classList.add('active');
       holdTimer=setTimeout(()=>{ held=true; surface.classList.add('sneak'); mode.textContent='SNEAK'; navigator.vibrate?.(12); },320);
@@ -67,6 +75,18 @@
     async function refresh(){
       try {
         const s=await (await fetch('/api/state',{cache:'no-store'})).json(); phase=s.phase;
+        if(previousPhase!==s.phase){
+          if(s.phase==='playing') playMusic('chase');
+          else if(s.phase==='won') playMusic('win');
+          else if(s.phase==='caught'||s.phase==='timeout') playMusic('caught');
+          else if(s.phase==='idle'&&previousPhase!==null) stopMusic();
+          previousPhase=s.phase;
+        }
+        if(s.phase==='playing'&&performance.now()>=nextHeartbeat){
+          playEffect('heartbeat');
+          const closeness=1-Math.min(8,s.distance)/8;
+          nextHeartbeat=performance.now()+Math.max(300,1100-closeness*720);
+        }
         document.querySelector('#connection').textContent='LIVE'; document.querySelector('#connection').className='live';
         document.querySelector('#phase').textContent=phaseNames[s.phase]||s.phase.toUpperCase(); document.querySelector('#time').textContent=s.remaining.toFixed(1);
         const power=document.querySelector('#power'); power.style.width=`${s.remaining/20*100}%`; power.style.background=s.remaining<=5?'var(--red)':s.remaining<=10?'#ff884d':'var(--green)';
