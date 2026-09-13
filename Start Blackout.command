@@ -13,5 +13,5 @@ trap cleanup EXIT INT TERM
 python3 blackout_game.py &
 blackout_pid=$!
 sleep 1
-open http://127.0.0.1:8765
+open http://127.0.0.1:8765/controller
 wait "$blackout_pid"

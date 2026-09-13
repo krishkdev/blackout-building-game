@@ -158,7 +158,7 @@ class Game:
         self.blocked_position = None
         self.last_frame = blank()
         self.display_status = "connecting"
-        self.controller = "keyboard / touch"
+        self.controller = "phone swipe"
         self.outcome = None
 
     def start(self):
@@ -295,8 +295,8 @@ class Game:
         frame = blank()
         for row, col in OCCUPIED:
             frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
-        # A breathing white diamond is the start invitation.
-        pulse = 125 + int(100 * (0.5 + 0.5 * math.sin(now * 3)))
+        # A steady white diamond is the start invitation.
+        pulse = 205
         for position in ((7, 4), (8, 3), (8, 4), (8, 5), (9, 4)):
             frame[position[0]][position[1]] = [pulse, pulse, pulse]
         return frame
@@ -450,9 +450,22 @@ class Game:
 GAME = Game()
 
 
+def send_display_frame(frame, timeout=3):
+    payload = json.dumps(frame, separators=(",", ":")).encode()
+    request = urllib.request.Request(
+        DISPLAY_URL,
+        data=payload,
+        headers={"Content-Type": "application/json", "User-Agent": "blackout-demo/1.0"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.status, payload
+
+
 def display_loop():
     # Clear any frame left behind by an older run before showing attract mode.
     clear_until = time.monotonic() + 0.5
+    last_payload = None
     while True:
         started = time.monotonic()
         GAME.update(started)
@@ -460,10 +473,14 @@ def display_loop():
             frame = blank() if started < clear_until else GAME.render(started)
             GAME.last_frame = frame
         payload = json.dumps(frame, separators=(",", ":")).encode()
-        request = urllib.request.Request(DISPLAY_URL, data=payload, headers={"Content-Type": "application/json", "User-Agent": "blackout-demo/1.0"}, method="POST")
+        if payload == last_payload:
+            time.sleep(max(0, 1 / FPS - (time.monotonic() - started)))
+            continue
         try:
-            with urllib.request.urlopen(request, timeout=3) as response:
-                GAME.display_status = "live" if response.status == 204 else f"HTTP {response.status}"
+            status, sent_payload = send_display_frame(frame)
+            GAME.display_status = "live" if status == 204 else f"HTTP {status}"
+            if status == 204:
+                last_payload = sent_payload
         except Exception:
             GAME.display_status = "reconnecting"
         time.sleep(max(0, 1 / FPS - (time.monotonic() - started)))
@@ -514,7 +531,7 @@ def serial_loop():
                 os.close(descriptor)
             except Exception:
                 pass
-            GAME.controller = "keyboard / touch"
+            GAME.controller = "phone swipe"
         time.sleep(1)
 
 
@@ -534,19 +551,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/health":
             self.send_json({"ok": True, "display": GAME.display_status, "audio": bool(GAME.audio.player)})
             return
-        if self.path in ("/controller", "/controller.html"):
+        if self.path in ("/", "/controller", "/controller.html"):
             data = (ROOT / "controller.html").read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-            return
-        if self.path in ("/", "/index.html"):
-            data = (ROOT / "index.html").read_bytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -577,7 +586,7 @@ def main():
     Thread(target=display_loop, daemon=True).start()
     Thread(target=serial_loop, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Blackout control console: http://{HOST}:{PORT}", flush=True)
+    print(f"Blackout phone controller: http://{HOST}:{PORT}/controller", flush=True)
     print("Press Ctrl-C to stop.", flush=True)
     try:
         server.serve_forever()
@@ -586,6 +595,10 @@ def main():
     finally:
         GAME.audio.stop()
         server.server_close()
+        try:
+            send_display_frame(blank(), timeout=2)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
