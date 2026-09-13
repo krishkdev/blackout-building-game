@@ -11,15 +11,18 @@ import math
 import os
 import random
 import select
+import shutil
 import subprocess
+import sys
 import time
 import urllib.request
 
 
 ROOT = Path(__file__).resolve().parent
 AUDIO = ROOT / "audio"
-DISPLAY_URL = "https://sundai.willsarg.com/api/i/calm-egret/frame"
-HOST, PORT = "127.0.0.1", 8765
+DISPLAY_URL = os.environ.get("BLACKOUT_DISPLAY_URL", "https://sundai.willsarg.com/api/i/calm-egret/frame")
+HOST = os.environ.get("BLACKOUT_HOST", "0.0.0.0")
+PORT = int(os.environ.get("BLACKOUT_PORT", "8765"))
 FPS = 8
 ROUND_SECONDS = 20.0
 ROWS, COLS = 17, 9
@@ -95,6 +98,14 @@ class Audio:
     def __init__(self):
         self.music = None
         self.effects = []
+        if sys.platform == "darwin" and Path("/usr/bin/afplay").exists():
+            self.player = ["/usr/bin/afplay"]
+        elif shutil.which("aplay"):
+            self.player = [shutil.which("aplay"), "-q"]
+        elif shutil.which("paplay"):
+            self.player = [shutil.which("paplay")]
+        else:
+            self.player = None
 
     def stop(self):
         processes = ([self.music] if self.music else []) + self.effects
@@ -106,12 +117,12 @@ class Audio:
 
     def play(self, filename, music=False):
         path = AUDIO / filename
-        if not path.exists():
+        if not path.exists() or not self.player:
             return
         if music:
             self.stop()
         self.effects = [p for p in self.effects if p.poll() is None]
-        process = subprocess.Popen(["/usr/bin/afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen(self.player + [str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if music:
             self.music = process
         else:
@@ -457,13 +468,19 @@ def display_loop():
 def serial_loop():
     """Read START/U/D/L/R and SU/SD/SL/SR from an Arduino without pyserial."""
     while True:
-        devices = sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*"))
+        devices = sorted(
+            glob.glob("/dev/cu.usbmodem*")
+            + glob.glob("/dev/cu.usbserial*")
+            + glob.glob("/dev/ttyACM*")
+            + glob.glob("/dev/ttyUSB*")
+        )
         if not devices:
             time.sleep(2)
             continue
         device = devices[0]
         try:
-            subprocess.run(["stty", "-f", device, "115200", "raw", "-echo"], check=True, capture_output=True)
+            flag = "-f" if sys.platform == "darwin" else "-F"
+            subprocess.run(["stty", flag, device, "115200", "raw", "-echo"], check=True, capture_output=True)
             descriptor = os.open(device, os.O_RDONLY | os.O_NONBLOCK)
             GAME.controller = Path(device).name
             buffer = b""
@@ -510,6 +527,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/state":
             self.send_json(GAME.snapshot())
             return
+        if self.path == "/api/health":
+            self.send_json({"ok": True, "display": GAME.display_status, "audio": bool(GAME.audio.player)})
+            return
+        if self.path in ("/controller", "/controller.html"):
+            data = (ROOT / "controller.html").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if self.path in ("/", "/index.html"):
             data = (ROOT / "index.html").read_bytes()
             self.send_response(200)
@@ -528,8 +557,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": False, "error": "invalid JSON"}, 400)
             return
         if self.path == "/api/start":
+            GAME.controller = "phone swipe"
             self.send_json({"ok": GAME.start()})
         elif self.path == "/api/move":
+            GAME.controller = "phone swipe"
             self.send_json({"ok": GAME.move(body.get("direction", ""), bool(body.get("sneak")))})
         else:
             self.send_error(404)

@@ -14,6 +14,8 @@ On macOS, you can instead double-click `Start Blackout.command` for a one-step l
 
 Open `http://127.0.0.1:8765` in a browser. The app streams frames to the `calm-egret` simulator and plays synchronized audio through the Mac.
 
+For the headless Raspberry Pi installation and phone swipe controller, follow [`PI_SETUP.md`](PI_SETUP.md). Once installed, the remote is available at `http://blackout.local:8765/controller` and no laptop display is required.
+
 ## Controls
 
 - Arrow keys or WASD: sprint

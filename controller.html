@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#050609">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Blackout Remote</title>
+  <style>
+    :root { color-scheme:dark; --red:#ff4d4f; --green:#37e981; --muted:#778092; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:#050609; color:#f4f6fb; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; touch-action:none; user-select:none; }
+    body { padding:max(18px,env(safe-area-inset-top)) 20px max(18px,env(safe-area-inset-bottom)); display:grid; grid-template-rows:auto auto 1fr auto; gap:14px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; }
+    .eyebrow { color:var(--red); letter-spacing:.18em; font-size:11px; }
+    h1 { margin:3px 0 0; font:900 34px/1 system-ui,sans-serif; letter-spacing:-.05em; }
+    #connection { color:var(--muted); font-size:11px; padding-top:5px; }
+    #connection.live { color:var(--green); }
+    .status { display:grid; grid-template-columns:1fr auto; align-items:end; gap:10px; }
+    #phase { font:800 18px system-ui,sans-serif; }
+    #time { font-size:24px; font-weight:800; }
+    .track { grid-column:1/-1; height:5px; background:#171b23; border-radius:8px; overflow:hidden; }
+    #power { height:100%; width:100%; background:var(--green); transition:width .15s linear,background .2s; }
+    #surface { position:relative; min-height:0; border:1px solid #252b37; border-radius:28px; background:radial-gradient(circle,#141a25 0,#090c12 68%); display:grid; place-items:center; overflow:hidden; }
+    #surface::before,#surface::after { content:""; position:absolute; background:#252b37; opacity:.45; }
+    #surface::before { width:1px; height:100%; } #surface::after { height:1px; width:100%; }
+    #gesture { position:relative; z-index:1; text-align:center; }
+    #arrow { height:80px; font:300 72px/1 system-ui,sans-serif; color:white; text-shadow:0 0 30px #ffffff52; }
+    #mode { color:var(--muted); font-size:12px; letter-spacing:.16em; }
+    #surface.sneak #mode { color:#c9ced8; } #surface.sneak #arrow { color:#c9ced8; }
+    #surface.active { border-color:#596477; }
+    #start { width:100%; min-height:64px; border:0; border-radius:16px; background:var(--red); color:white; font:900 17px system-ui,sans-serif; letter-spacing:.1em; }
+    #start:disabled { background:#1b202a; color:#626b79; }
+    .hint { text-align:center; color:var(--muted); font-size:11px; }
+  </style>
+</head>
+<body>
+  <header><div><div class="eyebrow">BUILDING REMOTE</div><h1>BLACKOUT</h1></div><div id="connection">CONNECTING</div></header>
+  <section class="status"><div id="phase">READY</div><div id="time">20.0</div><div class="track"><div id="power"></div></div></section>
+  <section id="surface"><div id="gesture"><div id="arrow">✦</div><div id="mode">SWIPE TO MOVE · HOLD TO SNEAK</div></div></section>
+  <div><button id="start">PRESS TO START</button><div class="hint">The building is the game board</div></div>
+  <script>
+    const surface=document.querySelector('#surface'), arrow=document.querySelector('#arrow'), mode=document.querySelector('#mode'), start=document.querySelector('#start');
+    const phaseNames={idle:'READY',prologue:'BLACKOUT',ready:'3 · 2 · 1',playing:'MOVE',won:'ESCAPED',caught:'CAUGHT',timeout:'POWER LOST'};
+    let origin=null, holdTimer=null, held=false, phase='idle';
+    const arrowFor={up:'↑',down:'↓',left:'←',right:'→'};
+    function direction(dx,dy){ if(Math.max(Math.abs(dx),Math.abs(dy))<34)return null; return Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'); }
+    async function post(path,body={}){
+      try { const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return await response.json(); }
+      catch(_){ return {ok:false}; }
+    }
+    async function keepAwake(){ try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(_){} }
+    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('/api/start'); if(result.ok) navigator.vibrate?.(25); });
+    surface.addEventListener('pointerdown',event=>{
+      origin={x:event.clientX,y:event.clientY,id:event.pointerId}; held=false; surface.setPointerCapture(event.pointerId); surface.classList.add('active');
+      holdTimer=setTimeout(()=>{ held=true; surface.classList.add('sneak'); mode.textContent='SNEAK'; navigator.vibrate?.(12); },320);
+    });
+    surface.addEventListener('pointermove',event=>{
+      if(!origin)return; const d=direction(event.clientX-origin.x,event.clientY-origin.y); arrow.textContent=d?arrowFor[d]:'✦';
+    });
+    async function release(event){
+      if(!origin)return; clearTimeout(holdTimer); const d=direction(event.clientX-origin.x,event.clientY-origin.y); const sneak=held; origin=null;
+      surface.classList.remove('active','sneak'); arrow.textContent='✦'; mode.textContent='SWIPE TO MOVE · HOLD TO SNEAK';
+      if(d&&phase==='playing'){ const result=await post('/api/move',{direction:d,sneak}); navigator.vibrate?.(result.ok?12:[45,30,45]); }
+    }
+    surface.addEventListener('pointerup',release); surface.addEventListener('pointercancel',release);
+    async function refresh(){
+      try {
+        const s=await (await fetch('/api/state',{cache:'no-store'})).json(); phase=s.phase;
+        document.querySelector('#connection').textContent='LIVE'; document.querySelector('#connection').className='live';
+        document.querySelector('#phase').textContent=phaseNames[s.phase]||s.phase.toUpperCase(); document.querySelector('#time').textContent=s.remaining.toFixed(1);
+        const power=document.querySelector('#power'); power.style.width=`${s.remaining/20*100}%`; power.style.background=s.remaining<=5?'var(--red)':s.remaining<=10?'#ff884d':'var(--green)';
+        start.disabled=!['idle','won','caught','timeout'].includes(s.phase); start.textContent=s.phase==='idle'?'PRESS TO START':'ROUND ACTIVE';
+      } catch(_){ document.querySelector('#connection').textContent='RECONNECTING'; document.querySelector('#connection').className=''; }
+    }
+    setInterval(refresh,200); refresh();
+  </script>
+</body>
+</html>
