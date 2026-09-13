@@ -53,7 +53,7 @@ The game automatically searches `/dev/cu.usbmodem*` and `/dev/cu.usbserial*` at 
 8. Win, capture, and timeout have distinct endings.
 
 The game returns to attract mode after each result; it never starts another round automatically.
-The sparse amber windows remain steady while the center title marquee advances four floors per second. Pressing Start replaces it immediately with the 4.1-second power-failure sequence. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
+The sparse amber windows remain steady outside a dedicated dark center lane while the title marquee advances one floor per second. Pressing Start replaces it immediately with the 4.1-second power-failure sequence. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
 
 ## 60-second judge demo
 

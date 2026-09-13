@@ -26,6 +26,8 @@ PORT = int(os.environ.get("PORT", os.environ.get("BLACKOUT_PORT", "8765")))
 FPS = 8
 ROUND_SECONDS = 20.0
 ROWS, COLS = 17, 9
+MARQUEE_STEP_SECONDS = 1.0
+MARQUEE_COLUMNS = range(2, 7)
 
 MAZE = (
     ".........",
@@ -307,9 +309,14 @@ class Game:
     def render_idle(self, now):
         frame = blank()
         for row, col in OCCUPIED:
-            frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
-        # Stack BLACKOUT vertically and move the strip upward until Start.
-        offset = int(now * 4) % len(TITLE_STRIP)
+            # Keep a dark, dedicated lane behind the title. Otherwise title
+            # pixels repeatedly cover and reveal amber offices, which reads as
+            # random flicker on the remote building renderer.
+            if col not in MARQUEE_COLUMNS:
+                frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
+        # Advance exactly one floor at a time. Maritime replaces the complete
+        # facade on every request, so a fast 4 Hz scroll looks like flashing.
+        offset = int((now - self.phase_started) / MARQUEE_STEP_SECONDS) % len(TITLE_STRIP)
         for facade_row in range(ROWS):
             pixels = TITLE_STRIP[(offset + facade_row) % len(TITLE_STRIP)]
             brightness = 145 + int(80 * (1 - abs(facade_row - (ROWS - 1) / 2) / ((ROWS - 1) / 2)))
