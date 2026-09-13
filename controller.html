@@ -45,8 +45,8 @@
     let origin=null, holdTimer=null, held=false, phase='idle', previousPhase=null, nextHeartbeat=0;
     const arrowFor={up:'↑',down:'↓',left:'←',right:'→'};
     const sounds={
-      prologue:new Audio('/audio/prologue.wav'), chase:new Audio('/audio/chase.wav'), heartbeat:new Audio('/audio/heartbeat.wav'),
-      win:new Audio('/audio/win.wav'), caught:new Audio('/audio/caught.wav'), nearMiss:new Audio('/audio/near_miss.wav')
+      prologue:new Audio('audio/prologue.wav'), chase:new Audio('audio/chase.wav'), heartbeat:new Audio('audio/heartbeat.wav'),
+      win:new Audio('audio/win.wav'), caught:new Audio('audio/caught.wav'), nearMiss:new Audio('audio/near_miss.wav')
     };
     let music=null;
     function stopMusic(){ if(music){ music.pause(); music.currentTime=0; music=null; } }
@@ -58,7 +58,7 @@
       catch(_){ return {ok:false}; }
     }
     async function keepAwake(){ try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(_){} }
-    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('/api/start'); if(result.ok){ playMusic('prologue'); navigator.vibrate?.(25); } });
+    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('api/start'); if(result.ok){ playMusic('prologue'); navigator.vibrate?.(25); } });
     surface.addEventListener('pointerdown',event=>{
       origin={x:event.clientX,y:event.clientY,id:event.pointerId}; held=false; surface.setPointerCapture(event.pointerId); surface.classList.add('active');
       holdTimer=setTimeout(()=>{ held=true; surface.classList.add('sneak'); mode.textContent='SNEAK'; navigator.vibrate?.(12); },320);
@@ -69,12 +69,12 @@
     async function release(event){
       if(!origin)return; clearTimeout(holdTimer); const d=direction(event.clientX-origin.x,event.clientY-origin.y); const sneak=held; origin=null;
       surface.classList.remove('active','sneak'); arrow.textContent='✦'; mode.textContent='SWIPE TO MOVE · HOLD TO SNEAK';
-      if(d&&phase==='playing'){ const result=await post('/api/move',{direction:d,sneak}); navigator.vibrate?.(result.ok?12:[45,30,45]); }
+      if(d&&phase==='playing'){ const result=await post('api/move',{direction:d,sneak}); navigator.vibrate?.(result.ok?12:[45,30,45]); }
     }
     surface.addEventListener('pointerup',release); surface.addEventListener('pointercancel',release);
     async function refresh(){
       try {
-        const s=await (await fetch('/api/state',{cache:'no-store'})).json(); phase=s.phase;
+        const s=await (await fetch('api/state',{cache:'no-store'})).json(); phase=s.phase;
         if(previousPhase!==s.phase){
           if(s.phase==='playing') playMusic('chase');
           else if(s.phase==='won') playMusic('win');
