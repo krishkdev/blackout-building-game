@@ -12,6 +12,8 @@ python3 blackout_game.py
 
 On macOS, you can instead double-click `Start Blackout.command` for a one-step launch. It starts the game server and opens the phone-style remote automatically.
 
+The macOS launcher runs as a safe localhost bridge to the Maritime game. It reads an attached Arduino joystick and forwards its commands to the same cloud game without starting a second display sender. Open `http://127.0.0.1:8765/controller` after launching it.
+
 Open `http://127.0.0.1:8765/controller` locally, or open `http://YOUR_COMPUTER_IP:8765/controller` from a phone on the same Wi-Fi. The app streams frames to the `curious-seal` simulator and plays synchronized audio through the host.
 
 For the headless Raspberry Pi installation and phone swipe controller, follow [`PI_SETUP.md`](PI_SETUP.md). Once installed, the remote is available at `http://blackout.local:8765/controller` and no laptop display is required.

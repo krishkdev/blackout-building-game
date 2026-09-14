@@ -21,6 +21,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parent
 AUDIO = ROOT / "audio"
 DISPLAY_URL = os.environ.get("BLACKOUT_DISPLAY_URL", "https://sundai.willsarg.com/api/i/curious-seal/frame")
+REMOTE_GAME_URL = os.environ.get("BLACKOUT_REMOTE_GAME_URL", "").rstrip("/")
 HOST = os.environ.get("BLACKOUT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", os.environ.get("BLACKOUT_PORT", "8765")))
 FPS = 8
@@ -484,6 +485,20 @@ def send_display_frame(frame, timeout=3):
         return response.status, payload
 
 
+def remote_request(path, body=None, timeout=5):
+    """Call the Maritime game when this process is a localhost bridge."""
+    url = f"{REMOTE_GAME_URL}/{path.lstrip('/')}"
+    data = None if body is None else json.dumps(body).encode()
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+        method="GET" if body is None else "POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
 def display_loop():
     # Clear any frame left behind by an older run before showing attract mode.
     clear_until = time.monotonic() + 0.5
@@ -539,13 +554,19 @@ def serial_loop():
                     line, buffer = buffer.split(b"\n", 1)
                     command = line.decode(errors="ignore").strip().upper()
                     if command == "START":
-                        GAME.start()
+                        if REMOTE_GAME_URL:
+                            remote_request("api/start", {})
+                        else:
+                            GAME.start()
                     else:
                         sneak = command.startswith("S")
                         key = command[-1:] if command else ""
                         direction = {"U": "up", "D": "down", "L": "left", "R": "right"}.get(key)
                         if direction:
-                            GAME.move(direction, sneak)
+                            if REMOTE_GAME_URL:
+                                remote_request("api/move", {"direction": direction, "sneak": sneak})
+                            else:
+                                GAME.move(direction, sneak)
         except Exception:
             pass
         finally:
@@ -570,10 +591,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/state":
-            self.send_json(GAME.snapshot())
+            if REMOTE_GAME_URL:
+                try:
+                    self.send_json(remote_request("api/state"))
+                except Exception:
+                    self.send_json({"ok": False, "error": "Maritime unavailable"}, 502)
+            else:
+                self.send_json(GAME.snapshot())
             return
         if self.path in ("/health", "/api/health"):
-            self.send_json({"ok": True, "display": GAME.display_status, "audio": bool(GAME.audio.player)})
+            self.send_json({
+                "ok": True,
+                "mode": "maritime-bridge" if REMOTE_GAME_URL else "standalone",
+                "display": "remote" if REMOTE_GAME_URL else GAME.display_status,
+                "audio": bool(GAME.audio.player),
+            })
             return
         if self.path.startswith("/audio/"):
             filename = self.path.removeprefix("/audio/")
@@ -608,11 +640,23 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": False, "error": "invalid JSON"}, 400)
             return
         if self.path == "/api/start":
-            GAME.controller = "phone swipe"
-            self.send_json({"ok": GAME.start()})
+            if REMOTE_GAME_URL:
+                try:
+                    self.send_json(remote_request("api/start", {}))
+                except Exception:
+                    self.send_json({"ok": False, "error": "Maritime unavailable"}, 502)
+            else:
+                GAME.controller = "phone swipe"
+                self.send_json({"ok": GAME.start()})
         elif self.path == "/api/move":
-            GAME.controller = "phone swipe"
-            self.send_json({"ok": GAME.move(body.get("direction", ""), bool(body.get("sneak")))})
+            if REMOTE_GAME_URL:
+                try:
+                    self.send_json(remote_request("api/move", body))
+                except Exception:
+                    self.send_json({"ok": False, "error": "Maritime unavailable"}, 502)
+            else:
+                GAME.controller = "phone swipe"
+                self.send_json({"ok": GAME.move(body.get("direction", ""), bool(body.get("sneak")))})
         else:
             self.send_error(404)
 
@@ -621,10 +665,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    Thread(target=display_loop, daemon=True).start()
+    if not REMOTE_GAME_URL:
+        Thread(target=display_loop, daemon=True).start()
     Thread(target=serial_loop, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Blackout phone controller: http://{HOST}:{PORT}/controller", flush=True)
+    mode = f"bridge to {REMOTE_GAME_URL}" if REMOTE_GAME_URL else "standalone"
+    print(f"Blackout phone controller: http://{HOST}:{PORT}/controller ({mode})", flush=True)
     print("Press Ctrl-C to stop.", flush=True)
     try:
         server.serve_forever()
@@ -633,10 +679,11 @@ def main():
     finally:
         GAME.audio.stop()
         server.server_close()
-        try:
-            send_display_frame(blank(), timeout=2)
-        except Exception:
-            pass
+        if not REMOTE_GAME_URL:
+            try:
+                send_display_frame(blank(), timeout=2)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
