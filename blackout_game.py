@@ -51,29 +51,18 @@ HUNTER_START = (1, 8)
 EXIT = (16, 8)
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 WALLS = {(row, col) for row in range(1, ROWS) for col in range(COLS) if (row, col) not in WALKABLE}
-WALL_COLOR = [105, 58, 7]
+WALL_COLOR = [96, 3, 18]
 COUNTDOWN_DIGITS = {
     "3": ("11111", "00001", "00001", "01111", "00001", "00001", "11111"),
     "2": ("11111", "00001", "00001", "11111", "10000", "10000", "11111"),
     "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
 }
-TITLE_GLYPHS = {
-    "B": ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
-    "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
-    "A": ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
-    "C": ("01111", "10000", "10000", "10000", "10000", "10000", "01111"),
-    "K": ("10001", "10010", "10100", "11000", "10100", "10010", "10001"),
-    "O": ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
-    "U": ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
-    "T": ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
-}
-TITLE = "BLACKOUT"
 
 _occupied_rng = random.Random(2026)
-OCCUPIED = {(row, col) for row in range(ROWS) for col in range(COLS) if _occupied_rng.random() < 0.23}
+OCCUPIED = {(row, col) for row in range(ROWS) for col in range(COLS) if _occupied_rng.random() < 0.72}
 OCCUPIED_COLORS = {
     position: (lambda warmth: [warmth, int(warmth * 0.68), int(warmth * 0.16)])(
-        (48, 58, 68, 78)[(position[0] * 7 + position[1] * 11) % 4]
+        (105, 125, 145, 165)[(position[0] * 7 + position[1] * 11) % 4]
     )
     for position in OCCUPIED
 }
@@ -267,7 +256,7 @@ class Game:
 
     def update(self, now):
         with self.lock:
-            if self.phase == "prologue" and now - self.phase_started >= 7.3:
+            if self.phase == "prologue" and now - self.phase_started >= 8.1:
                 self.phase = "ready"
                 self.phase_started = now
             elif self.phase == "ready" and now - self.phase_started >= 3.0:
@@ -303,35 +292,28 @@ class Game:
         frame = blank()
         for row, col in OCCUPIED:
             frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
-        return frame
-
-    def render_title_letter(self, frame, letter):
-        glyph = TITLE_GLYPHS[letter]
-        for glyph_row, pixels in enumerate(glyph):
-            # Cool light is strongest around the center of the tower.
-            brightness = 205 - abs(glyph_row - 3) * 12
-            for glyph_col, lit in enumerate(pixels):
-                if lit == "1":
-                    frame[5 + glyph_row][2 + glyph_col] = [brightness - 22, brightness - 8, brightness]
+        # A steady white diamond is the start invitation.
+        pulse = 205
+        for position in ((7, 4), (8, 3), (8, 4), (8, 5), (9, 4)):
+            frame[position[0]][position[1]] = [pulse, pulse, pulse]
         return frame
 
     def render_prologue(self, now):
         elapsed = now - self.phase_started
-        if elapsed < 3.2:
-            letter = TITLE[min(len(TITLE) - 1, int(elapsed / 0.4))]
-            return self.render_title_letter(self.render_idle(now), letter)
-        if elapsed < 5.4:
-            dead_rows = min(ROWS, int(((elapsed - 3.2) / 2.2) * (ROWS + 1)))
+        if elapsed < 3.0:
+            return self.render_idle(now)
+        if elapsed < 5.7:
+            dead_rows = min(ROWS, int(((elapsed - 3.0) / 2.7) * (ROWS + 1)))
             frame = blank()
             for row, col in OCCUPIED:
                 if row >= dead_rows:
-                    frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
+                    frame[row][col] = [145, 95, 22]
             if dead_rows < ROWS:
-                frame[dead_rows] = [[85, 52, 12] for _ in range(COLS)]
+                frame[dead_rows] = [[100, 70, 20] for _ in range(COLS)]
             return frame
         frame = blank()
-        if elapsed < 6.6:
-            center = int(((elapsed - 5.4) / 1.2) * (ROWS - 1))
+        if elapsed < 7.1:
+            center = int(((elapsed - 5.7) / 1.4) * (ROWS - 1))
             for row in range(ROWS):
                 strength = max(0, 245 - abs(row - center) * 100)
                 if strength:
@@ -412,7 +394,7 @@ class Game:
         # A rejected move briefly reveals the solid corridor wall in deep red.
         if now < self.blocked_until and self.blocked_position:
             row, col = self.blocked_position
-            frame[row][col] = [210, 112, 10]
+            frame[row][col] = [165, 0, 26]
 
         if now < self.near_miss_until:
             amount = (self.near_miss_until - now) / 0.25
@@ -486,13 +468,9 @@ def display_loop():
         GAME.update(started)
         with GAME.lock:
             frame = blank() if started < clear_until else GAME.render(started)
-            phase = GAME.phase
             GAME.last_frame = frame
         payload = json.dumps(frame, separators=(",", ":")).encode()
-        # Keep asserting the yellow occupied-building frame while waiting.
-        # The shared simulator can otherwise clear or overwrite a frame that
-        # we sent only once. Non-idle duplicate frames remain suppressed.
-        if payload == last_payload and phase != "idle":
+        if payload == last_payload:
             time.sleep(max(0, 1 / FPS - (time.monotonic() - started)))
             continue
         try:
