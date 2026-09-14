@@ -21,7 +21,7 @@ The included `Dockerfile` supports public cloud deployment on Maritime. The phon
 ## Phone controls
 
 - Press the red button: start
-- Swipe or tap an on-screen arrow: sprint
+- Swipe: sprint
 - Hold briefly, then swipe: sneak
 - Short vibration: movement accepted
 - Double vibration: blocked move
@@ -43,17 +43,18 @@ The game automatically searches `/dev/cu.usbmodem*` and `/dev/cu.usbserial*` at 
 
 ## Demo flow
 
-1. A mostly dark 3 a.m. office tower waits with sparse amber windows while `BLACKOUT` scrolls vertically in cool blue-white light.
+1. A mostly dark 3 a.m. office tower waits with sparse, faint amber windows.
 2. Press Start.
-3. The marquee stops immediately and the remaining office lights fail from top to bottom.
-4. A red alarm scans the facade.
-5. Green exit, white protagonist, and red hunter appear.
-6. A large 3–2–1 countdown appears before the chase begins.
-7. The player has 20 seconds to reach the exit.
-8. Win, capture, and timeout have distinct endings.
+3. Cool blue-white facade letters rapidly spell `BLACKOUT`.
+4. The remaining office lights fail from top to bottom.
+5. A red alarm scans the facade.
+6. Green exit, white protagonist, and red hunter appear.
+7. A large 3–2–1 countdown appears before the chase begins.
+8. The player has 20 seconds to reach the exit.
+9. Win, capture, and timeout have distinct endings.
 
 The game returns to attract mode after each result; it never starts another round automatically.
-The sparse amber windows remain steady outside a dedicated dark center lane while the title marquee advances one floor per second. Pressing Start replaces it immediately with the 4.1-second power-failure sequence. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
+The sparse amber windows remain completely steady in attract mode. The sender suppresses duplicate frames, so the simulator receives no unnecessary idle updates. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
 
 ## 60-second judge demo
 

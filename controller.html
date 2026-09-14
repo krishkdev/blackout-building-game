@@ -29,10 +29,6 @@
     #mode { color:var(--muted); font-size:12px; letter-spacing:.16em; }
     #surface.sneak #mode { color:#c9ced8; } #surface.sneak #arrow { color:#c9ced8; }
     #surface.active { border-color:#596477; }
-    .dir { position:absolute; z-index:2; width:70px; height:58px; border:1px solid #424b5d; border-radius:15px; background:#171c26cc; color:#fff; font:700 29px/1 system-ui,sans-serif; touch-action:manipulation; }
-    .dir:active { background:#343d4d; transform:scale(.96); }
-    #up { top:9%; left:50%; translate:-50% 0; } #down { bottom:9%; left:50%; translate:-50% 0; }
-    #left { left:8%; top:50%; translate:0 -50%; } #right { right:8%; top:50%; translate:0 -50%; }
     #start { width:100%; min-height:64px; border:0; border-radius:16px; background:var(--red); color:white; font:900 17px system-ui,sans-serif; letter-spacing:.1em; }
     #start:disabled { background:#1b202a; color:#626b79; }
     .hint { text-align:center; color:var(--muted); font-size:11px; }
@@ -41,13 +37,7 @@
 <body>
   <header><div><div class="eyebrow">BUILDING REMOTE</div><h1>BLACKOUT</h1></div><div id="connection">CONNECTING</div></header>
   <section class="status"><div id="phase">READY</div><div id="time">20.0</div><div class="track"><div id="power"></div></div></section>
-  <section id="surface">
-    <button class="dir" id="up" data-direction="up" aria-label="Move up">↑</button>
-    <button class="dir" id="left" data-direction="left" aria-label="Move left">←</button>
-    <div id="gesture"><div id="arrow">✦</div><div id="mode">SWIPE OR TAP · HOLD TO SNEAK</div></div>
-    <button class="dir" id="right" data-direction="right" aria-label="Move right">→</button>
-    <button class="dir" id="down" data-direction="down" aria-label="Move down">↓</button>
-  </section>
+  <section id="surface"><div id="gesture"><div id="arrow">✦</div><div id="mode">SWIPE TO MOVE · HOLD TO SNEAK</div></div></section>
     <div><button id="start">PRESS TO START</button><div class="hint">Amber = wall · bright coral = hunter</div></div>
   <script>
     const surface=document.querySelector('#surface'), arrow=document.querySelector('#arrow'), mode=document.querySelector('#mode'), start=document.querySelector('#start');
@@ -64,26 +54,13 @@
     function playEffect(name){ const sound=sounds[name].cloneNode(); sound.volume=.9; sound.play().catch(()=>{}); }
     function direction(dx,dy){ if(Math.max(Math.abs(dx),Math.abs(dy))<34)return null; return Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'); }
     async function post(path,body={}){
-      try {
-        const response=await fetch(path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},body:JSON.stringify(body)});
-        if(!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.json();
-      } catch(_){ setConnection('RECONNECTING',false); return {ok:false}; }
-    }
-    function setConnection(text,live){ const el=document.querySelector('#connection'); el.textContent=text; el.className=live?'live':''; }
-    async function sendMove(direction,sneak=false){
-      const result=await post('api/move',{direction,sneak});
-      if(result.ok){ arrow.textContent=arrowFor[direction]; setConnection('MOVE SENT',true); navigator.vibrate?.(12); }
-      else { setConnection(phase==='playing'?'BLOCKED':'WAIT FOR MOVE',false); navigator.vibrate?.([45,30,45]); }
-      setTimeout(()=>{ arrow.textContent='✦'; },180);
+      try { const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return await response.json(); }
+      catch(_){ return {ok:false}; }
     }
     async function keepAwake(){ try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(_){} }
-    start.addEventListener('click',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('api/start'); if(result.ok){ playMusic('prologue'); navigator.vibrate?.(25); } });
+    start.addEventListener('pointerup',async event=>{ event.stopPropagation(); keepAwake(); const result=await post('api/start'); if(result.ok){ playMusic('prologue'); navigator.vibrate?.(25); } });
     surface.addEventListener('pointerdown',event=>{
-      if(event.target.closest('.dir')) return;
-      origin={x:event.clientX,y:event.clientY,id:event.pointerId}; held=false;
-      try { surface.setPointerCapture(event.pointerId); } catch(_) {}
-      surface.classList.add('active');
+      origin={x:event.clientX,y:event.clientY,id:event.pointerId}; held=false; surface.setPointerCapture(event.pointerId); surface.classList.add('active');
       holdTimer=setTimeout(()=>{ held=true; surface.classList.add('sneak'); mode.textContent='SNEAK'; navigator.vibrate?.(12); },320);
     });
     surface.addEventListener('pointermove',event=>{
@@ -91,16 +68,10 @@
     });
     async function release(event){
       if(!origin)return; clearTimeout(holdTimer); const d=direction(event.clientX-origin.x,event.clientY-origin.y); const sneak=held; origin=null;
-      surface.classList.remove('active','sneak'); arrow.textContent='✦'; mode.textContent='SWIPE OR TAP · HOLD TO SNEAK';
-      if(d) await sendMove(d,sneak);
+      surface.classList.remove('active','sneak'); arrow.textContent='✦'; mode.textContent='SWIPE TO MOVE · HOLD TO SNEAK';
+      if(d&&phase==='playing'){ const result=await post('api/move',{direction:d,sneak}); navigator.vibrate?.(result.ok?12:[45,30,45]); }
     }
-    function cancelGesture(){ clearTimeout(holdTimer); origin=null; surface.classList.remove('active','sneak'); arrow.textContent='✦'; mode.textContent='SWIPE OR TAP · HOLD TO SNEAK'; }
-    surface.addEventListener('pointerup',release); surface.addEventListener('pointercancel',cancelGesture);
-    document.querySelectorAll('.dir').forEach(button=>{
-      button.addEventListener('pointerdown',event=>event.stopPropagation());
-      button.addEventListener('click',event=>{ event.stopPropagation(); keepAwake(); sendMove(button.dataset.direction,false); });
-    });
-    window.addEventListener('keydown',event=>{ const d={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[event.key]; if(d){ event.preventDefault(); sendMove(d,event.shiftKey); } });
+    surface.addEventListener('pointerup',release); surface.addEventListener('pointercancel',release);
     async function refresh(){
       try {
         const s=await (await fetch('api/state',{cache:'no-store'})).json(); phase=s.phase;
@@ -116,11 +87,11 @@
           const closeness=1-Math.min(8,s.distance)/8;
           nextHeartbeat=performance.now()+Math.max(300,1100-closeness*720);
         }
-        setConnection('LIVE',true);
+        document.querySelector('#connection').textContent='LIVE'; document.querySelector('#connection').className='live';
         document.querySelector('#phase').textContent=phaseNames[s.phase]||s.phase.toUpperCase(); document.querySelector('#time').textContent=s.remaining.toFixed(1);
         const power=document.querySelector('#power'); power.style.width=`${s.remaining/20*100}%`; power.style.background=s.remaining<=5?'var(--red)':s.remaining<=10?'#ff884d':'var(--green)';
         start.disabled=!['idle','won','caught','timeout'].includes(s.phase); start.textContent=s.phase==='idle'?'PRESS TO START':'ROUND ACTIVE';
-      } catch(_){ setConnection('RECONNECTING',false); }
+      } catch(_){ document.querySelector('#connection').textContent='RECONNECTING'; document.querySelector('#connection').className=''; }
     }
     setInterval(refresh,200); refresh();
   </script>

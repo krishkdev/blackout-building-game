@@ -26,8 +26,6 @@ PORT = int(os.environ.get("PORT", os.environ.get("BLACKOUT_PORT", "8765")))
 FPS = 8
 ROUND_SECONDS = 20.0
 ROWS, COLS = 17, 9
-MARQUEE_STEP_SECONDS = 1.0
-MARQUEE_COLUMNS = range(2, 7)
 
 MAZE = (
     ".........",
@@ -70,11 +68,6 @@ TITLE_GLYPHS = {
     "T": ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
 }
 TITLE = "BLACKOUT"
-TITLE_STRIP = tuple(
-    row
-    for letter in TITLE
-    for row in (*TITLE_GLYPHS[letter], "00000")
-)
 
 _occupied_rng = random.Random(2026)
 OCCUPIED = {(row, col) for row in range(ROWS) for col in range(COLS) if _occupied_rng.random() < 0.23}
@@ -274,7 +267,7 @@ class Game:
 
     def update(self, now):
         with self.lock:
-            if self.phase == "prologue" and now - self.phase_started >= 4.1:
+            if self.phase == "prologue" and now - self.phase_started >= 7.3:
                 self.phase = "ready"
                 self.phase_started = now
             elif self.phase == "ready" and now - self.phase_started >= 3.0:
@@ -309,26 +302,26 @@ class Game:
     def render_idle(self, now):
         frame = blank()
         for row, col in OCCUPIED:
-            # Keep a dark, dedicated lane behind the title. Otherwise title
-            # pixels repeatedly cover and reveal amber offices, which reads as
-            # random flicker on the remote building renderer.
-            if col not in MARQUEE_COLUMNS:
-                frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
-        # Advance exactly one floor at a time. Maritime replaces the complete
-        # facade on every request, so a fast 4 Hz scroll looks like flashing.
-        offset = int((now - self.phase_started) / MARQUEE_STEP_SECONDS) % len(TITLE_STRIP)
-        for facade_row in range(ROWS):
-            pixels = TITLE_STRIP[(offset + facade_row) % len(TITLE_STRIP)]
-            brightness = 145 + int(80 * (1 - abs(facade_row - (ROWS - 1) / 2) / ((ROWS - 1) / 2)))
+            frame[row][col] = OCCUPIED_COLORS[(row, col)][:]
+        return frame
+
+    def render_title_letter(self, frame, letter):
+        glyph = TITLE_GLYPHS[letter]
+        for glyph_row, pixels in enumerate(glyph):
+            # Cool light is strongest around the center of the tower.
+            brightness = 205 - abs(glyph_row - 3) * 12
             for glyph_col, lit in enumerate(pixels):
                 if lit == "1":
-                    frame[facade_row][2 + glyph_col] = [brightness - 22, brightness - 8, brightness]
+                    frame[5 + glyph_row][2 + glyph_col] = [brightness - 22, brightness - 8, brightness]
         return frame
 
     def render_prologue(self, now):
         elapsed = now - self.phase_started
-        if elapsed < 2.2:
-            dead_rows = min(ROWS, int((elapsed / 2.2) * (ROWS + 1)))
+        if elapsed < 3.2:
+            letter = TITLE[min(len(TITLE) - 1, int(elapsed / 0.4))]
+            return self.render_title_letter(self.render_idle(now), letter)
+        if elapsed < 5.4:
+            dead_rows = min(ROWS, int(((elapsed - 3.2) / 2.2) * (ROWS + 1)))
             frame = blank()
             for row, col in OCCUPIED:
                 if row >= dead_rows:
@@ -337,8 +330,8 @@ class Game:
                 frame[dead_rows] = [[85, 52, 12] for _ in range(COLS)]
             return frame
         frame = blank()
-        if elapsed < 3.4:
-            center = int(((elapsed - 2.2) / 1.2) * (ROWS - 1))
+        if elapsed < 6.6:
+            center = int(((elapsed - 5.4) / 1.2) * (ROWS - 1))
             for row in range(ROWS):
                 strength = max(0, 245 - abs(row - center) * 100)
                 if strength:
@@ -562,8 +555,6 @@ class Handler(BaseHTTPRequestHandler):
         data = json.dumps(value).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
