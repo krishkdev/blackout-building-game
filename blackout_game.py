@@ -486,9 +486,13 @@ def display_loop():
         GAME.update(started)
         with GAME.lock:
             frame = blank() if started < clear_until else GAME.render(started)
+            phase = GAME.phase
             GAME.last_frame = frame
         payload = json.dumps(frame, separators=(",", ":")).encode()
-        if payload == last_payload:
+        # Keep asserting the yellow occupied-building frame while waiting.
+        # The shared simulator can otherwise clear or overwrite a frame that
+        # we sent only once. Non-idle duplicate frames remain suppressed.
+        if payload == last_payload and phase != "idle":
             time.sleep(max(0, 1 / FPS - (time.monotonic() - started)))
             continue
         try:

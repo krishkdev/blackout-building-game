@@ -54,7 +54,7 @@ The game automatically searches `/dev/cu.usbmodem*` and `/dev/cu.usbserial*` at 
 9. Win, capture, and timeout have distinct endings.
 
 The game returns to attract mode after each result; it never starts another round automatically.
-The sparse amber windows remain completely steady in attract mode. The sender suppresses duplicate frames, so the simulator receives no unnecessary idle updates. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
+The sparse amber windows remain completely steady in attract mode, and the service continuously refreshes that idle frame so the shared simulator cannot clear it between games. Duplicate non-idle frames are still suppressed. On launch, the service first sends a brief black clearing frame so stale simulator pixels cannot leak into the new run.
 
 ## 60-second judge demo
 
