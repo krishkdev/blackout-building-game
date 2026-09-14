@@ -21,7 +21,7 @@ The included `Dockerfile` supports public cloud deployment on Maritime. The phon
 ## Phone controls
 
 - Press the red button: start
-- Swipe: sprint
+- Swipe or tap an on-screen arrow: sprint
 - Hold briefly, then swipe: sneak
 - Short vibration: movement accepted
 - Double vibration: blocked move
